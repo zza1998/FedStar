@@ -56,18 +56,21 @@ class serverGIN_dc(torch.nn.Module):
         super(serverGIN_dc, self).__init__()
 
         self.embedding_s = torch.nn.Linear(n_se, nhid)
-        self.Whp = torch.nn.Linear(nhid + nhid, nhid)
+        
 
         self.graph_convs = torch.nn.ModuleList()
         self.nn1 = torch.nn.Sequential(torch.nn.Linear(nhid + nhid, nhid), torch.nn.ReLU(), torch.nn.Linear(nhid, nhid))
         self.graph_convs.append(GINConv(self.nn1))
+        
         self.graph_convs_s_gcn = torch.nn.ModuleList()
         self.graph_convs_s_gcn.append(GCNConv(nhid, nhid))
 
         for l in range(nlayer - 1):
             self.nnk = torch.nn.Sequential(torch.nn.Linear(nhid + nhid, nhid), torch.nn.ReLU(), torch.nn.Linear(nhid, nhid))
             self.graph_convs.append(GINConv(self.nnk))
+         
             self.graph_convs_s_gcn.append(GCNConv(nhid, nhid))
+        
 
 class GIN_dc(torch.nn.Module):
     def __init__(self, nfeat, n_se, nhid, nclass, nlayer, dropout):
@@ -76,18 +79,19 @@ class GIN_dc(torch.nn.Module):
         self.dropout = dropout
 
         self.pre = torch.nn.Sequential(torch.nn.Linear(nfeat, nhid))
-
         self.embedding_s = torch.nn.Linear(n_se, nhid)
 
         self.graph_convs = torch.nn.ModuleList()
         self.nn1 = torch.nn.Sequential(torch.nn.Linear(nhid + nhid, nhid), torch.nn.ReLU(), torch.nn.Linear(nhid, nhid))
         self.graph_convs.append(GINConv(self.nn1))
+        
         self.graph_convs_s_gcn = torch.nn.ModuleList()
         self.graph_convs_s_gcn.append(GCNConv(nhid, nhid))
 
         for l in range(nlayer - 1):
             self.nnk = torch.nn.Sequential(torch.nn.Linear(nhid + nhid, nhid), torch.nn.ReLU(), torch.nn.Linear(nhid, nhid))
             self.graph_convs.append(GINConv(self.nnk))
+            
             self.graph_convs_s_gcn.append(GCNConv(nhid, nhid))
 
         self.Whp = torch.nn.Linear(nhid + nhid, nhid)
@@ -99,13 +103,14 @@ class GIN_dc(torch.nn.Module):
         x = self.pre(x)
         s = self.embedding_s(s)
         for i in range(len(self.graph_convs)):
-            x = torch.cat((x, s), -1)
             x = self.graph_convs[i](x, edge_index)
             x = F.relu(x)
             x = F.dropout(x, self.dropout, training=self.training)
+            
+        for i in range(len(self.graph_convs)):
             s = self.graph_convs_s_gcn[i](s, edge_index)
             s = torch.tanh(s)
-
+            
         x = self.Whp(torch.cat((x, s), -1))
         x = global_add_pool(x, batch)
         x = self.post(x)
@@ -113,7 +118,6 @@ class GIN_dc(torch.nn.Module):
         x = self.readout(x)
         x = F.log_softmax(x, dim=1)
         return x
-
     def loss(self, pred, label):
         return F.nll_loss(pred, label)
 
